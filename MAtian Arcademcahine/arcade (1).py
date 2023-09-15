@@ -1,12 +1,15 @@
 import os
 import customtkinter
 import tkinter as tk
+from tkVideoPlayer import TkinterVideo
 from PIL import Image, ImageTk
 from pyjoystick.sdl2 import Joystick, Key, run_event_loop
 import threading
-import cv2
 
-arcadeBackground = "Valmis_Oranssi.mp4"
+arcadeBackground = "Background.mp4"
+video_play_interval = 20000 
+
+
 
 def add_joystick(joystick):
     print('Added', joystick)
@@ -35,7 +38,9 @@ def handle_key_event(key):
     
     update_display(x)
 
-def create_thumbnail_image(image_path, size=(1000, 700), fallback_image_path="default_thumbnail.jpg"):
+    
+
+def create_thumbnail_image(image_path, size=(1100, 750), fallback_image_path="default_thumbnail.jpg"):
     try:
         return customtkinter.CTkImage(dark_image=Image.open(image_path), size=size)
     except FileNotFoundError:
@@ -65,54 +70,67 @@ def joystick_loop():
     run_event_loop(add_joystick=add_joystick, remove_joystick=remove_joystick, handle_key_event=handle_key_event)
 
 def update_display(image_number):
-    global my_label, x
-
-    my_label.grid_forget()
+    global x
 
     image_number %= len(image_list)
     x = image_number  # Update the current image index
     current_folder_files = folder_files_list[x]
     current_folder_name = os.path.basename(current_folder_files[0])
 
-    my_label = customtkinter.CTkLabel(app, image=image_list[image_number], text="")
-    my_label.pack(expand=True, fill='both')
+    my_label.configure(image=image_list[image_number])
     game_name_label.configure(text=current_folder_name)
 
-    my_label.place(relx=0.5, rely=0.05, anchor="n")
+
+def update_display_loop():
+    update_display(x)
+    app.after(1000, update_display_loop) 
+    
+ # Schedule the next update in 1 second
 
 def tkinter_loop():
     customtkinter.set_appearance_mode("dark")
-    global app, my_label, game_name_label
+    global app, my_label, game_name_label,background_image
 
     app = customtkinter.CTk()
 
-    # Create a Canvas widget for the video background
-    canvas = tk.Canvas(app, width=1920, height=1080)
-    canvas.place(relx=0, rely=0, anchor="nw")
+    app.wm_attributes('-transparentcolor', '#ab23ff')
+    app.attributes("-topmost", True)
+    background_image = tk.PhotoImage(file="Gradient.jpg")
+
 
     # Load and display the video as the background
-    cap = cv2.VideoCapture(arcadeBackground)
-    ret, frame = cap.read()
-    if ret:
-        frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-        photo = Image.fromarray(frame)
-        photo = ImageTk.PhotoImage(photo)
-        canvas.create_image(0, 0, anchor="nw", image=photo)
-        canvas.photo = photo  # Keep a reference to prevent garbage collection
-    cap.release()
+    video_canvas = TkinterVideo(master=app, anchor="center")
+    video_canvas.load("Background.mp4")  # Replace with the path to your video file
+    video_canvas.pack(fill="both", expand=True)  # Expand to fill the window
+    video_canvas.play()
+    
 
     my_label = customtkinter.CTkLabel(app, image=image_list[0], text="")
-    my_label.place(relx=0.5, rely=0.05, anchor="n")
+    my_label.place(relx=0.5, rely=0.53, anchor="center")
 
-    game_name_label = customtkinter.CTkLabel(app, text="", fg_color="transparent")
-    game_name_label.place(relx=0.5, rely=0.75, anchor="s")
+
+    game_name_label = customtkinter.CTkLabel(app, text="",text_color="white")
+    game_name_label.place(relx=0.5, rely=0.925, anchor="s")
+    game_name_label.configure(image=background_image)
+
+
 
     current_folder_name = os.path.basename(folder_files_list[0][0])
-    game_name_label.configure(text=current_folder_name, font=("Arial", 25))
+    game_name_label.configure(text=current_folder_name, font=("Arcade Normal", 25),)
 
-    app.geometry("1920x1080")
-    app.attributes("-fullscreen","True")
+    app.geometry("1920x1080")  # Set your desired window size here
+    app.attributes("-fullscreen", "True")
+
+    schedule_video_playback(video_canvas) 
+
+
+    update_display_loop()  # Start the update display loop
     app.mainloop()
+
+
+def schedule_video_playback(video_canvas):
+    video_canvas.play()
+    app.after(video_play_interval, schedule_video_playback, video_canvas)
 
 def main():
     joystick_thread = threading.Thread(target=joystick_loop)
